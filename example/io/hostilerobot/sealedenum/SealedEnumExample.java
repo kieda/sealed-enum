@@ -32,33 +32,18 @@ public class SealedEnumExample {
     }
 
     public static final class END extends PipeLine<Integer, Boolean, PipeLine<Boolean, ?, ?>> {
-        protected END() {
-            super(x-> x < 0); // stop if x is less than zero
-        }
-
+        protected END() { super(x-> x < 0); } // stop if x is less than zero
         @Override
-        public Boolean apply(Integer integer) {
-            return integer % 2 == 0;
-        }
-
+        public Boolean apply(Integer integer) { return integer % 2 == 0;}
         @Override
-        public PipeLine<Boolean, ?, ?> next() {
-            return null;
-        }
+        public PipeLine<Boolean, ?, ?> next() { return null; }
     }
     public static final class START extends PipeLine<String, Integer, END> {
-        protected START() {
-            super(s -> s == null || s.length() < 5);
-        }
-
+        protected START() { super(s -> s == null || s.length() < 5); }
         @Override
-        public Integer apply(String s) {
-            return Integer.parseInt(s);
-        }
+        public Integer apply(String s) { return Integer.parseInt(s); }
         @Override
-        public END next() {
-            return getSealedEnum(END.class);
-        }
+        public END next() { return getSealedEnum(END.class); }
     }
 
     public static Object run(String input) {
@@ -70,15 +55,29 @@ public class SealedEnumExample {
         }
         return state;
     }
+    public static PipeLine runState(String input) {
+        Object state = input;
+        PipeLine line = SealedEnum.getSealedEnum(START.class);
+        while(line != null && !line.stop(state)) {
+            state = line.apply(state);
+            line = line.next();
+        }
+        return line;
+    }
+
+    public static void printRun(String input) {
+        Object result = run(input);
+        System.out.println(runState(input) + " " + (result == null ? null : result.getClass().getSimpleName()) + " " + result);
+    }
 
     public static void main(String[] args) {
         System.out.println(PIPELINE.values()); // [END, START]
-        System.out.println(run(null)); // null, val is null
-        System.out.println(run("1234")); // "1234", length < 5
-        System.out.println(run("-898")); // "-898", length < 5
-        System.out.println(run("-8989")); // -8989, val < 0
-        System.out.println(run("12345")); // false, is odd
-        System.out.println(run("12346")); // true
-        System.out.println(run("not a number")); // exception, not a number
+        printRun(null); // START, val is null
+        printRun("1234"); // START,  "1234", length < 5
+        printRun("-898"); // START, "-898", length < 5
+        printRun("-8989"); // END, -8989, val < 0
+        printRun("12345"); // null, false, is odd
+        printRun("12346"); // null, true
+        printRun("not a number"); // exception, not a number
     }
 }
