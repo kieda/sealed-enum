@@ -10,12 +10,6 @@ import java.util.*;
  * and to guarantee there is only one instance
  */
 public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
-    // problem: we only want one map at the level of super-class
-    // currently this will fill toOrdinal and instances for each subclass, which we don't want to do
-    // todo - could we just have SealedEnum myEnum = SealedEnum.of(MySealedEnum.class); -- I like this better. We can also return the same object using this method.
-    // myEnum.values()
-
-
     /* static types:
      * SealedEnumBase : T
      * SealedEnum : I extends T
@@ -86,59 +80,19 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
         instanceToBase.put(instance, (Class<? extends SealedEnum<?>>)base);
     }
     private static void clearBaseEntries(Class<?> k) {
-
-        //java.util.Map<java.lang.Class<? extends T>,java.lang.Integer>
-        // cannot be converted to
-        // java.util.Map<java.lang.Class<? extends io.hostilerobot.ceramicrelief.util.SealedEnum<?>>,
-        // java.lang.Integer>
         baseToBaseInstance.remove(k);
         baseToOrdinals.remove(k);
         baseToInstances.remove(k);
     }
 
 
-
-    //    private static MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
     private static Set<StackWalker.Option> ALL_OPTIONS = EnumSet.allOf(StackWalker.Option.class);
 
     /*
-         thought experiment on naughty usage:
 
-         public sealed MySealedEnum extends SealedEnum<T>{
-            todo -- support multiple constructors HERE.
-            protected MySealedEnum() {
-                super(MySealedEnum.class)
-                SealedEnum badInstance = new SealedEnum(MySealedEnum.class);
-                SealedEnum anotherBadInstance = new MySealedEnum();
-                    // we might be able to circumvent our security checks :(
-            }
-
-            public static final Enum1 extends MySealedEnum{
-                public Enum1(otherArgs) {
-                    super(otherArgs);
-                }
-                public Enum1() {
-                    this(someStaticFunction());
-                    new Enum1();
-                }
-            }
-
-            // we can basically follow the type hierarchy in the stack heirarchy and ensure it's an exact match
-            // after that we ensure that it's SealedEnum, then back to base
-
-            stacktrace:
-               MySealedEnum (constructor)
-               SealedEnum (constructor)
-               [reflect] Enum1.newInstance()
-               Enum1 (constructor)
-                   MySealedEnum (constructor) <Enum1>
-                   SealedEnum (constructor) <Enum1>
-                      ... stop from checks
-                   new Enum1() (constructor) <newInst>
-                      MySealedEnum (constructor) <newInst>
-                      SealedEnum (constructor) <newInst>, current.
          }
          */
+
 
     protected SealedEnum(Class<? super T> base) {
         if(!base.isSealed())
@@ -181,9 +135,6 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
             // !isBase && hasEntry && hasEnumEntry(subClass) then we already processed subclass, someone's attempting to instantiate outside of reflection => error
             // !isBase && hasEntry && !hasEnumEntry(subClass) then enum will be added => OK
             // !isBase && !hasEntry then we are processing subclass too early => error
-
-            // todo - how do we want to deal with sealed classes that are not final?
-            //    possibly: build a tree
             Class<?> duplicateOffender = base;
             boolean hasEntry = hasBaseEntry(base);
             duplicateError: // base should always be created first and exactly once.
