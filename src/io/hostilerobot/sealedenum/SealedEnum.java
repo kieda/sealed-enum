@@ -47,7 +47,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
 
     private final boolean isBase;
 
-    private static <T extends SealedEnum<T>> boolean hasBaseEntry(Class<T> base) {
+    private static boolean hasBaseEntry(Class<?> base) {
         return baseToBaseInstance.containsKey(base);
     }
 
@@ -55,10 +55,10 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
         return SEEN.containsKey(enumVal);
     }
     private static <T extends SealedEnum<T>> boolean hasEnumEntry(Class<? extends T> enumVal) {
-        Class<T> base = (Class<T>) instanceToBase.get(enumVal);
+        Class<? super T> base = (Class<? super T>) instanceToBase.get(enumVal);
         if(base == null)
             return false;
-        T baseEnum = getSealedEnum(base);
+        T baseEnum = (T)getSealedEnum(base);
         List<? extends SealedEnum<?>> inst = baseToInstances.get(base);
         if(inst == null)
             return false;
@@ -72,19 +72,20 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
     }
 
 
-    private static <T extends SealedEnum<T>> void putEntries(Class<T> k, T v,
-                                                             Map<Class<? extends SealedEnum<?>>, Integer> ordinals,
-                                                             List<T> inst) {
+    private static <T extends SealedEnum<T>> void putBaseEntries(Class<? super T> k, SealedEnum<T> v,
+                                                                 Map<Class<? extends SealedEnum<?>>, Integer> ordinals,
+                                                                 List<? extends SealedEnum<?>> inst) {
 
-        //java.util.Map<java.lang.Class<? extends T>,java.lang.Integer>
-        // cannot be converted to
-        // java.util.Map<java.lang.Class<? extends io.hostilerobot.ceramicrelief.util.SealedEnum<?>>,
-        // java.lang.Integer>
-        baseToBaseInstance.put(k, v);
-        baseToOrdinals.put(k, ordinals);
-        baseToInstances.put(k, inst);
+
+        Class<? extends SealedEnum<?>> baseKey = (Class<? extends SealedEnum<?>>)k;
+        baseToBaseInstance.put(baseKey, v);
+        baseToOrdinals.put(baseKey, ordinals);
+        baseToInstances.put(baseKey, inst);
     }
-    private static <T extends SealedEnum<T>> void clearEntries(Class<T> k) {
+    private static <T extends SealedEnum<T>> void putInstance(Class<? extends T> instance, Class<? super T> base) {
+        instanceToBase.put(instance, (Class<? extends SealedEnum<?>>)base);
+    }
+    private static void clearBaseEntries(Class<?> k) {
 
         //java.util.Map<java.lang.Class<? extends T>,java.lang.Integer>
         // cannot be converted to
@@ -139,7 +140,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
          }
          */
 
-    protected SealedEnum(Class<T> base) {
+    protected SealedEnum(Class<? super T> base) {
         if(!base.isSealed())
             throw new IllegalArgumentException(base + " is not sealed!");
         // base must directly extend SealedEnum and pass itself as a parameter
@@ -213,7 +214,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
                             List<T> instancesForBase = new ArrayList<>(enumCount);
 
                             // optimistically place entries. revert later if there's a problem
-                            putEntries(base, (T) this, ordinalsForBase, instancesForBase);
+                            putBaseEntries(base, this, ordinalsForBase, instancesForBase);
                             int ordinal = 0;
                             try {
                                 for (; ordinal < enumCount; ordinal++) {
@@ -224,7 +225,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
                                         throw new ReflectiveOperationException("subclasses must be final");
                                     }
 
-                                    instanceToBase.put(subClass, base);
+                                    putInstance(subClass, base);
                                     ordinalsForBase.put(subClass, ordinal);
 
                                     //ordinalsForBase.put(subClass, ordinal);
@@ -244,7 +245,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
                                 }
                             } catch (ReflectiveOperationException ex) {
                                 // undo entries
-                                clearEntries(base);
+                                clearBaseEntries(base);
                                 // undo base class mapping
                                 for (int j = 0; j < ordinal; j++) {
                                     Class<? extends T> subClass = (Class<? extends T>) permitted[j];
@@ -286,7 +287,7 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
             return baseToOrdinals.get(instanceToBase.get(getClass())).get(getClass());
     }
 
-    public final T instance(Class<? extends T> clazz) {
+    public final T instance(Class<T> clazz) {
         Class<?> base = isBase ? getClass() : instanceToBase.get(getClass());
         // these casts will pass given the guarantee from the constructor
         if(clazz == base)
@@ -295,9 +296,18 @@ public class SealedEnum<T extends SealedEnum<T>> implements Comparable<T>{
             return (T) baseToInstances.get(base).get(baseToOrdinals.get(base).get(clazz));
     }
 
+    public static <T> boolean isBase(Class<? extends T> clazz) {
+        return baseToBaseInstance.containsKey(clazz);
+    }
+
     public static <T> T getSealedEnum(Class<? extends T> clazz) {
         // returns the cached enum (base class)
-        return (T) baseToBaseInstance.get(clazz);
+        if(isBase(clazz))
+            return (T) baseToBaseInstance.get(clazz);
+        else {
+            Class<?> base = instanceToBase.get(clazz);
+            return (T) baseToInstances.get(base).get(baseToOrdinals.get(base).get(clazz));
+        }
     }
 
     @Override
